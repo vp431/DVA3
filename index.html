@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>ELL824 A3 Visualization </title>
+  <title>A3 Visualization Dashboard</title>
   <meta charset="UTF-8">
   <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
@@ -36,7 +36,7 @@
       margin-right: 5px;
     }
     .tab.active {
-      background-color: #3a65d9;
+      background-color: #007bff;
       color: white;
       border-bottom: 1px solid white;
     }
@@ -52,14 +52,6 @@
       color: #333;
       margin-bottom: 30px;
     }
-    h3 {
-      text-align: center;
-      color: #3a65d9;
-      margin-bottom: 25px;
-      font-weight: 500;
-      font-size: 1.2em;
-      letter-spacing: 0.5px;
-    }
     #loading {
       text-align: center;
       font-size: 18px;
@@ -70,9 +62,8 @@
 </head>
 <body>
   <div class="container">
-    <h1>ELL824 A3 Data Visualization</h1>
-    <h3>Vaibhav Kagathara - 2024EET2852</h3>
-
+    <h1>A3 Data Visualization</h1>
+    
     <div class="tabs">
       <div class="tab active" onclick="showVisualization('donut')">Donut Chart</div>
       <div class="tab" onclick="showVisualization('scatter')">Units vs Unit Cost</div>
@@ -80,8 +71,8 @@
       <div class="tab" onclick="showVisualization('histogram')">Histogram</div>
       <div class="tab" onclick="showVisualization('monthly')">Monthly Revenue</div>
       <div class="tab" onclick="showVisualization('stacked')">Sales by Items</div>
-      <div class="tab" onclick="showVisualization('cumulative')">Heatmap</div>
-     
+      <div class="tab" onclick="showVisualization('cumulative')">Cumulative Sales</div>
+  
     </div>
     
     <div id="loading">Loading visualizations...</div>
@@ -93,7 +84,6 @@
     <div id="monthly" class="vis-container"></div>
     <div id="stacked" class="vis-container"></div>
     <div id="cumulative" class="vis-container"></div>
-
   </div>
 
   <script>
@@ -118,9 +108,7 @@
       // Activate selected tab
       document.querySelectorAll('.tab').forEach(el => {
         if (el.textContent.toLowerCase().includes(visId.toLowerCase()) || 
-           (visId === 'scatter' && el.textContent.includes('Units vs Unit Cost')) ||
-           (visId === 'stacked' && el.textContent.includes('Sales by Items')) ||
-           (visId === 'cumulative' && el.textContent.includes('Heatmap'))) {
+           (visId === 'scatter' && el.textContent.includes('Units vs Unit Cost'))) {
           el.classList.add('active');
         }
       });
@@ -338,26 +326,8 @@
       // 5. Monthly Revenue Trend - Line Chart
       const monthlyRevenueSpec = {
         $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
-        title: 'Monthly Revenue Trend with Items Filter',
+        title: 'Monthly Revenue Trend',
         data: { values: data },
-        params: [{
-          name: 'item_selection',
-          select: { type: 'point', fields: ['Item'] },
-          bind: {
-            input: 'select',
-            options: [null, ...new Set(data.map(d => d.Item))],
-            labels: ['All Items', ...new Set(data.map(d => d.Item))],
-            name: 'Item Filter: '
-          }
-        }],
-        transform: [
-          {
-            filter: {
-              param: 'item_selection',
-              empty: true
-            }
-          }
-        ],
         mark: 'line',
         encoding: {
           x: {
@@ -373,13 +343,7 @@
             aggregate: 'sum',
             title: 'Total Revenue'
           },
-          color: {
-            field: 'Item',
-            type: 'nominal',
-            title: 'Item'
-          },
           tooltip: [
-            { field: 'Item', type: 'nominal' },
             { field: 'OrderDate', timeUnit: 'yearmonth', type: 'temporal', title: 'Month', format: '%b %Y' },
             { field: 'Total', aggregate: 'sum', type: 'quantitative', format: ',.2f', title: 'Revenue' }
           ]
@@ -391,7 +355,7 @@
       // 6. Total Sales by Items and Region - Stacked Bar Chart
       const stackedBarSpec = {
         $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
-        title: 'Total Sales by Items and Region with Filter',
+        title: 'Total Sales by Items and Region',
         data: { values: data },
         params: [{
           name: 'region_filter',
@@ -442,62 +406,57 @@
         height: 500
       };
 
-      // 7. Heatmap of Sales by Rep and Item
-      const heatmapSpec = {
+      // 7. Cumulative Sales Over Time - Line Chart
+      const cumulativeSpec = {
         $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
-        title: 'Sales Heatmap by Rep and Item',
+        title: 'Cumulative Sales Over Time',
         data: { values: data },
         transform: [
           {
-            aggregate: [{ op: 'sum', field: 'Total', as: 'TotalSales' }],
-            groupby: ['Rep', 'Item']
+            sort: [{ field: 'OrderDate' }],
+            window: [{
+              op: 'sum',
+              field: 'Total',
+              as: 'CumulativeTotal'
+            }],
+            groupby: ['Item'],
+            frame: [null, 0]
           }
         ],
-        mark: 'rect',
+        mark: 'line',
         encoding: {
-          y: {
-            field: 'Rep',
-            type: 'nominal',
-            title: 'Sales Representative',
-            sort: { op: 'sum', field: 'TotalSales', order: 'descending' }
-          },
           x: {
-            field: 'Item',
-            type: 'nominal',
-            title: 'Item',
-            sort: { op: 'sum', field: 'TotalSales', order: 'descending' }
+            field: 'OrderDate',
+            type: 'temporal',
+            timeUnit: 'yearmonth',
+            title: 'Month',
+            axis: {format: '%b %Y'}
+          },
+          y: {
+            field: 'CumulativeTotal',
+            type: 'quantitative',
+            title: 'Cumulative Sales'
           },
           color: {
-            field: 'TotalSales',
-            type: 'quantitative',
-            title: 'Total Sales',
-            scale: {
-              type: 'linear',
-              scheme: 'blues'
-            }
+            field: 'Item',
+            type: 'nominal'
           },
           tooltip: [
-            { field: 'Rep', type: 'nominal', title: 'Sales Rep' },
             { field: 'Item', type: 'nominal' },
-            { field: 'TotalSales', type: 'quantitative', format: ',.2f', title: 'Total Sales' }
+            { field: 'OrderDate', timeUnit: 'yearmonth', type: 'temporal', title: 'Month', format: '%b %Y' },
+            { field: 'CumulativeTotal', type: 'quantitative', format: ',.2f', title: 'Cumulative Sales' }
           ]
         },
-        config: {
-          axis: {
-            grid: true,
-            tickBand: 'extent'
-          }
-        },
-        width: 200,
-        height: 300
+        width: 700,
+        height: 500
       };
 
-
+    
 
       // Embed the new visualizations
       vegaEmbed('#monthly', monthlyRevenueSpec).catch(console.error);
       vegaEmbed('#stacked', stackedBarSpec).catch(console.error);
-      vegaEmbed('#cumulative', heatmapSpec).catch(console.error);
+      vegaEmbed('#cumulative', cumulativeSpec).catch(console.error);
       vegaEmbed('#waterfall', waterfallSpec).catch(console.error);
     }
   </script>
