@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ELL824 A3 Visualization </title>
+  <meta charset="UTF-8">
+  <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .tabs {
+      display: flex;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #ddd;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      background-color: #f1f1f1;
+      border: 1px solid #ddd;
+      border-radius: 4px 4px 0 0;
+      margin-right: 5px;
+    }
+    .tab.active {
+      background-color: #3a65d9;
+      color: white;
+      border-bottom: 1px solid white;
+    }
+    .vis-container {
+      height: 600px;
+      display: none;
+    }
+    .vis-container.active {
+      display: block;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 30px;
+    }
+    h3 {
+      text-align: center;
+      color: #3a65d9;
+      margin-bottom: 25px;
+      font-weight: 500;
+      font-size: 1.2em;
+      letter-spacing: 0.5px;
+    }
+    #loading {
+      text-align: center;
+      font-size: 18px;
+      color: #777;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ELL824 A3 Data Visualization</h1>
+    <h3>Vaibhav Kagathara - 2024EET2852</h3>
+
+    <div class="tabs">
+      <div class="tab active" onclick="showVisualization('donut')">Donut Chart</div>
+      <div class="tab" onclick="showVisualization('scatter')">Units vs Unit Cost</div>
+      <div class="tab" onclick="showVisualization('stream')">Streamgraph</div>
+      <div class="tab" onclick="showVisualization('histogram')">Histogram</div>
+      <div class="tab" onclick="showVisualization('monthly')">Monthly Revenue</div>
+      <div class="tab" onclick="showVisualization('stacked')">Sales by Items</div>
+      <div class="tab" onclick="showVisualization('cumulative')">Heatmap</div>
+      <div class="tab" onclick="showVisualization('waterfall')">Waterfall Chart</div>
+    </div>
+    
+    <div id="loading">Loading visualizations...</div>
+    
+    <div id="donut" class="vis-container active"></div>
+    <div id="scatter" class="vis-container"></div>
+    <div id="stream" class="vis-container"></div>
+    <div id="histogram" class="vis-container"></div>
+    <div id="monthly" class="vis-container"></div>
+    <div id="stacked" class="vis-container"></div>
+    <div id="cumulative" class="vis-container"></div>
+    <div id="waterfall" class="vis-container"></div>
+  </div>
+
+  <script>
+    // Function to show selected visualization
+    function showVisualization(visId) {
+      // Hide all visualizations
+      document.querySelectorAll('.vis-container').forEach(el => {
+        el.classList.remove('active');
+        el.style.display = 'none';
+      });
+      
+      // Deactivate all tabs
+      document.querySelectorAll('.tab').forEach(el => {
+        el.classList.remove('active');
+      });
+      
+      // Show selected visualization
+      const selectedVis = document.getElementById(visId);
+      selectedVis.classList.add('active');
+      selectedVis.style.display = 'block';
+      
+      // Activate selected tab
+      document.querySelectorAll('.tab').forEach(el => {
+        if (el.textContent.toLowerCase().includes(visId.toLowerCase()) || 
+           (visId === 'scatter' && el.textContent.includes('Units vs Unit Cost')) ||
+           (visId === 'stacked' && el.textContent.includes('Sales by Items')) ||
+           (visId === 'cumulative' && el.textContent.includes('Heatmap'))) {
+          el.classList.add('active');
+        }
+      });
+    }
+
+    // Function to parse date in the format MM/DD/YY
+    function parseDate(dateString) {
+      const parts = dateString.split('/');
+      // Adjust year to handle two-digit representation
+      let year = parseInt(parts[2]);
+      if (year < 100) {
+        year = year < 50 ? 2000 + year : 1900 + year;
+      }
+      // Month is 0-indexed in JavaScript Date
+      return new Date(year, parts[0] - 1, parts[1]);
+    }
+
+    // Load and process the CSV data using D3
+    d3.csv('A3.csv').then(data => {
+      // Process data: Convert numeric values and dates
+      const processedData = data.map(d => {
+        return {
+          OrderDate: parseDate(d.OrderDate),
+          Region: d.Region,
+          Rep: d.Rep,
+          Item: d.Item,
+          Units: +d.Units,
+          'Unit Cost': parseFloat(d['Unit Cost'].replace(/[^0-9.-]+/g, "")),
+          Total: parseFloat(d.Total.replace(/[^0-9.-]+/g, ""))
+        };
+      });
+      
+      // Hide loading indicator once data is loaded
+      document.getElementById('loading').style.display = 'none';
+      
+      // Create all visualizations
+      createVisualizations(processedData);
+      
+      // Initialize visibility
+      showVisualization('donut');
+    }).catch(error => {
+      console.error('Error loading or parsing data:', error);
+      document.getElementById('loading').innerHTML = 'Error loading data: ' + error.message;
+    });
+
+    function createVisualizations(data) {
+      // 1. Donut Chart showing Rep and Total
+      const donutSpec = {
+        $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+        title: 'Total Sales by Rep (Donut Chart)',
+        data: { values: data },
+        transform: [
+          {
+            aggregate: [{ op: 'sum', field: 'Total', as: 'TotalSales' }],
+            groupby: ['Rep']
+          }
+        ],
+        mark: { type: 'arc', innerRadius: 80 },
+        encoding: {
+          theta: { field: 'TotalSales', type: 'quantitative' },
+          color: { 
+            field: 'Rep', 
+            type: 'nominal', 
+            legend: { title: 'Sales Representative' },
+            scale: {
+              scheme: 'tableau20'  // Using a larger color palette to avoid similar colors
+            }
+          },
+          tooltip: [
+            { field: 'Rep', type: 'nominal' },
+            { field: 'TotalSales', type: 'quantitative', format: ',.2f', title: 'Total Sales' }
+          ]
+        },
+        width: 500,
+        height: 500,
+        view: { stroke: null }
+      };
+      
+      // 2. Scatter Plot with Rectangular Brush
+      const scatterSpec = {
+        $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+        title: 'Correlation between Units and Unit Cost',
+        description: "Drag out a rectangular brush to highlight items",
+        data: { values: data },
+        params: [{
+          name: 'brush',
+          select: 'interval',
+          value: {"x": [30, 45], "y": [5, 55]}  // Initial selection
+        }],
+        mark: 'circle',
+        encoding: {
+          x: {
+            field: 'Units',
+            type: 'quantitative',
+            title: 'Units'
+          },
+          y: {
+            field: 'Unit Cost',
+            type: 'quantitative',
+            title: 'Unit Cost'
+          },
+          color: {
+            condition: { param: 'brush', field: 'Item', type: 'nominal' },
+            value: 'grey'
+          },
+          size: { field: 'Total', type: 'quantitative', title: 'Total Sales' },
+          tooltip: [
+            { field: 'Item', type: 'nominal' },
+            { field: 'Rep', type: 'nominal' },
+            { field: 'Units', type: 'quantitative' },
+            { field: 'Unit Cost', type: 'quantitative', title: 'Unit Cost' },
+            { field: 'Total', type: 'quantitative', format: ',.2f', title: 'Total Sales' }
+          ]
+        },
+        width: 600,
+        height: 500
+      };
+      
+      // 3. Streamgraph showing how Total varied over time for each Item
+      const streamSpec = {
+        $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+        title: 'Total Sales Over Time by Item (Streamgraph)',
+        data: { values: data },
+        mark: 'area',
+        encoding: {
+          x: {
+            field: 'OrderDate',
+            type: 'temporal',
+            timeUnit: 'yearmonth',
+            title: 'Date',
+            axis: {format: '%b %Y'}
+          },
+          y: {
+            field: 'Total',
+            type: 'quantitative',
+            aggregate: 'sum',
+            stack: 'center',
+            title: 'Total Sales'
+          },
+          color: {
+            field: 'Item',
+            type: 'nominal',
+            scale: { scheme: 'category10' }
+          },
+          tooltip: [
+            { field: 'Item', type: 'nominal' },
+            { field: 'OrderDate', timeUnit: 'yearmonth', type: 'temporal', title: 'Month', format: '%b %Y' },
+            { field: 'Total', aggregate: 'sum', type: 'quantitative', format: ',.2f', title: 'Total Sales' }
+          ]
+        },
+        width: 700,
+        height: 500
+      };
+      
+      // 4. Histogram of Units with global mean overlay
+      const histogramSpec = {
+        $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+        title: 'Distribution of Units with Global Mean',
+        data: { values: data },
+        layer: [
+          {
+            mark: 'bar',
+            encoding: {
+              x: {
+                field: 'Units',
+                type: 'quantitative',
+                bin: {maxbins: 10},
+                title: 'Units'
+              },
+              y: {
+                aggregate: 'count',
+                type: 'quantitative',
+                title: 'Count'
+              }
+            }
+          },
+          {
+            transform: [
+              {
+                bin: {maxbins: 10, as: ['bin_min', 'bin_max']},
+                field: 'Units'
+              },
+              {
+                aggregate: [{op: 'count', as: 'count'}],
+                groupby: ['bin_min', 'bin_max']
+              },
+              {
+                aggregate: [{op: 'mean', field: 'count', as: 'mean_count'}],
+                groupby: []
+              }
+            ],
+            mark: { type: 'rule', color: 'red', strokeWidth: 2 },
+            encoding: {
+              y: {
+                field: 'mean_count',
+                type: 'quantitative'
+              },
+              size: { value: 3 },
+              tooltip: [
+                { field: 'mean_count', type: 'quantitative', title: 'Average Count', format: ',.1f' }
+              ]
+            }
+          }
+        ],
+        width: 600,
+        height: 500
+      };
+
+      // Embed the visualizations
+      vegaEmbed('#donut', donutSpec).catch(console.error);
+      vegaEmbed('#scatter', scatterSpec).catch(console.error);
+      vegaEmbed('#stream', streamSpec).catch(console.error);
+      vegaEmbed('#histogram', histogramSpec).catch(console.error);
+
+      // 5. Monthly Revenue Trend - Line Chart
+      const monthlyRevenueSpec = {
+        $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+        title: 'Monthly Revenue Trend with Items Filter',
+        data: { values: data },
+        params: [{
+          name: 'item_selection',
+          select: { type: 'point', fields: ['Item'] },
+          bind: {
+            input: 'select',
+            options: [null, ...new Set(data.map(d => d.Item))],
+            labels: ['All Items', ...new Set(data.map(d => d.Item))],
+            name: 'Item Filter: '
+          }
+        }],
+        transform: [
+          {
+            filter: {
+              param: 'item_selection',
+              empty: true
+            }
+          }
+        ],
+        mark: 'line',
+        encoding: {
+          x: {
+            field: 'OrderDate',
+            type: 'temporal',
+            timeUnit: 'yearmonth',
+            title: 'Month',
+            axis: {format: '%b %Y'}
+          },
+          y: {
+            field: 'Total',
+            type: 'quantitative',
+            aggregate: 'sum',
+            title: 'Total Revenue'
+          },
+          color: {
+            field: 'Item',
+            type: 'nominal',
+            title: 'Item'
+          },
+          tooltip: [
+            { field: 'Item', type: 'nominal' },
+            { field: 'OrderDate', timeUnit: 'yearmonth', type: 'temporal', title: 'Month', format: '%b %Y' },
+            { field: 'Total', aggregate: 'sum', type: 'quantitative', format: ',.2f', title: 'Revenue' }
+          ]
+        },
+        width: 700,
+        height: 500
+      };
+
+      // 6. Total Sales by Items and Region - Stacked Bar Chart
+      const stackedBarSpec = {
+        $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+        title: 'Total Sales by Items and Region with Filter',
+        data: { values: data },
+        params: [{
+          name: 'region_filter',
+          select: { type: 'point', fields: ['Region'] },
+          bind: {
+            input: 'select',
+            options: [null, ...new Set(data.map(d => d.Region))],
+            labels: ['All', ...new Set(data.map(d => d.Region))],
+            name: 'Region Filter: '
+          }
+        }],
+        transform: [
+          {
+            filter: {
+              param: 'region_filter',
+              empty: true
+            }
+          },
+          {
+            aggregate: [{ op: 'sum', field: 'Total', as: 'TotalSales' }],
+            groupby: ['Item', 'Region']
+          }
+        ],
+        mark: 'bar',
+        encoding: {
+          x: {
+            field: 'Item',
+            type: 'nominal',
+            title: 'Items',
+            sort: { op: 'sum', field: 'TotalSales', order: 'descending' }
+          },
+          y: {
+            field: 'TotalSales',
+            type: 'quantitative',
+            title: 'Total Sales'
+          },
+          color: {
+            field: 'Region',
+            type: 'nominal'
+          },
+          tooltip: [
+            { field: 'Item', type: 'nominal' },
+            { field: 'Region', type: 'nominal' },
+            { field: 'TotalSales', type: 'quantitative', format: ',.2f', title: 'Total Sales' }
+          ]
+        },
+        width: 700,
+        height: 500
+      };
+
+      // 7. Heatmap of Sales by Rep and Item
+      const heatmapSpec = {
+        $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+        title: 'Sales Heatmap by Rep and Item',
+        data: { values: data },
+        transform: [
+          {
+            aggregate: [{ op: 'sum', field: 'Total', as: 'TotalSales' }],
+            groupby: ['Rep', 'Item']
+          }
+        ],
+        mark: 'rect',
+        encoding: {
+          y: {
+            field: 'Rep',
+            type: 'nominal',
+            title: 'Sales Representative',
+            sort: { op: 'sum', field: 'TotalSales', order: 'descending' }
+          },
+          x: {
+            field: 'Item',
+            type: 'nominal',
+            title: 'Item',
+            sort: { op: 'sum', field: 'TotalSales', order: 'descending' }
+          },
+          color: {
+            field: 'TotalSales',
+            type: 'quantitative',
+            title: 'Total Sales',
+            scale: {
+              type: 'linear',
+              scheme: 'blues'
+            }
+          },
+          tooltip: [
+            { field: 'Rep', type: 'nominal', title: 'Sales Rep' },
+            { field: 'Item', type: 'nominal' },
+            { field: 'TotalSales', type: 'quantitative', format: ',.2f', title: 'Total Sales' }
+          ]
+        },
+        config: {
+          axis: {
+            grid: true,
+            tickBand: 'extent'
+          }
+        },
+        width: 200,
+        height: 300
+      };
+
+      // 8. Monthly Revenue Waterfall Chart
+      const waterfallSpec = {
+        $schema: "https://vega.github.io/schema/vega/v5.json",
+        width: 700,
+        height: 500,
+        padding: 5,
+        title: {
+          text: "Monthly Revenue Changes (Waterfall Chart)"
+        },
+        data: [
+          {
+            name: "table",
+            values: data,
+            transform: [
+              {
+                type: "formula",
+                expr: "timeFormat(datum.OrderDate, '%b %Y')",
+                as: "MonthStr"
+              },
+              {
+                type: "formula",
+                expr: "month(datum.OrderDate)",
+                as: "Month"
+              },
+              {
+                type: "formula",
+                expr: "year(datum.OrderDate)",
+                as: "Year"
+              },
+              {
+                type: "formula",
+                expr: "datetime(datum.Year, datum.Month, 1)",
+                as: "YearMonth"
+              },
+              {
+                type: "aggregate",
+                groupby: ["YearMonth", "MonthStr"],
+                fields: ["Total"],
+                ops: ["sum"],
+                as: ["MonthlyTotal"]
+              },
+              {
+                type: "window",
+                sort: {field: "YearMonth", order: "ascending"},
+                ops: ["lag"],
+                fields: ["MonthlyTotal"],
+                as: ["PrevTotal"]
+              },
+              {
+                type: "formula",
+                expr: "datum.PrevTotal == null ? datum.MonthlyTotal : datum.MonthlyTotal - datum.PrevTotal",
+                as: "Change"
+              },
+              {
+                type: "formula",
+                expr: "datum.Change > 0 ? 'Increase' : 'Decrease'",
+                as: "ChangeType"
+              }
+            ]
+          },
+          {
+            name: "waterfall",
+            source: "table",
+            transform: [
+              {
+                type: "window",
+                ops: ["sum"],
+                fields: ["Change"],
+                as: ["sum"],
+                sort: {field: "YearMonth"}
+              },
+              {
+                type: "formula",
+                expr: "datum.sum - datum.Change",
+                as: "previous_sum"
+              }
+            ]
+          }
+        ],
+        scales: [
+          {
+            name: "x",
+            type: "band",
+            range: "width",
+            domain: {data: "waterfall", field: "MonthStr"},
+            padding: 0.2
+          },
+          {
+            name: "y",
+            type: "linear",
+            range: "height",
+            nice: true,
+            zero: true,
+            domain: {data: "waterfall", fields: ["previous_sum", "sum"]}
+          },
+          {
+            name: "color",
+            type: "ordinal",
+            domain: ["Increase", "Decrease"],
+            range: ["#4CAF50", "#F44336"]
+          }
+        ],
+        axes: [
+          {
+            orient: "bottom",
+            scale: "x",
+            title: "Month",
+            labelAngle: -45,
+            labelAlign: "right",
+            labelBaseline: "middle"
+          },
+          {
+            orient: "left",
+            scale: "y",
+            title: "Revenue Change"
+          }
+        ],
+        marks: [
+          {
+            type: "rect",
+            from: {data: "waterfall"},
+            encode: {
+              enter: {
+                x: {scale: "x", field: "MonthStr"},
+                width: {scale: "x", band: 1},
+                y: {scale: "y", field: "previous_sum"},
+                y2: {scale: "y", field: "sum"},
+                fill: {scale: "color", field: "ChangeType"},
+                tooltip: {
+                  signal: "{'Month': datum.MonthStr, 'Change': format(datum.Change, ',.2f'), 'Monthly Total': format(datum.MonthlyTotal, ',.2f')}"
+                }
+              }
+            }
+          }
+        ],
+        legends: [
+          {
+            fill: "color",
+            title: "Change Type",
+            orient: "top-right"
+          }
+        ]
+      };
+
+      // Embed the new visualizations
+      vegaEmbed('#monthly', monthlyRevenueSpec).catch(console.error);
+      vegaEmbed('#stacked', stackedBarSpec).catch(console.error);
+      vegaEmbed('#cumulative', heatmapSpec).catch(console.error);
+      vegaEmbed('#waterfall', waterfallSpec).catch(console.error);
+    }
+  </script>
+</body>
+</html> 
