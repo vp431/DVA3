@@ -81,7 +81,7 @@
       <div class="tab" onclick="showVisualization('monthly')">Monthly Revenue</div>
       <div class="tab" onclick="showVisualization('stacked')">Sales by Items</div>
       <div class="tab" onclick="showVisualization('cumulative')">Heatmap</div>
-      <div class="tab" onclick="showVisualization('waterfall')">Waterfall Chart</div>
+     
     </div>
     
     <div id="loading">Loading visualizations...</div>
@@ -93,7 +93,7 @@
     <div id="monthly" class="vis-container"></div>
     <div id="stacked" class="vis-container"></div>
     <div id="cumulative" class="vis-container"></div>
-    <div id="waterfall" class="vis-container"></div>
+
   </div>
 
   <script>
@@ -492,149 +492,7 @@
         height: 300
       };
 
-      // 8. Monthly Revenue Waterfall Chart
-      const waterfallSpec = {
-        $schema: "https://vega.github.io/schema/vega/v5.json",
-        width: 700,
-        height: 500,
-        padding: 5,
-        title: {
-          text: "Monthly Revenue Changes (Waterfall Chart)"
-        },
-        data: [
-          {
-            name: "table",
-            values: data,
-            transform: [
-              {
-                type: "formula",
-                expr: "timeFormat(datum.OrderDate, '%b %Y')",
-                as: "MonthStr"
-              },
-              {
-                type: "formula",
-                expr: "month(datum.OrderDate)",
-                as: "Month"
-              },
-              {
-                type: "formula",
-                expr: "year(datum.OrderDate)",
-                as: "Year"
-              },
-              {
-                type: "formula",
-                expr: "datetime(datum.Year, datum.Month, 1)",
-                as: "YearMonth"
-              },
-              {
-                type: "aggregate",
-                groupby: ["YearMonth", "MonthStr"],
-                fields: ["Total"],
-                ops: ["sum"],
-                as: ["MonthlyTotal"]
-              },
-              {
-                type: "window",
-                sort: {field: "YearMonth", order: "ascending"},
-                ops: ["lag"],
-                fields: ["MonthlyTotal"],
-                as: ["PrevTotal"]
-              },
-              {
-                type: "formula",
-                expr: "datum.PrevTotal == null ? datum.MonthlyTotal : datum.MonthlyTotal - datum.PrevTotal",
-                as: "Change"
-              },
-              {
-                type: "formula",
-                expr: "datum.Change > 0 ? 'Increase' : 'Decrease'",
-                as: "ChangeType"
-              }
-            ]
-          },
-          {
-            name: "waterfall",
-            source: "table",
-            transform: [
-              {
-                type: "window",
-                ops: ["sum"],
-                fields: ["Change"],
-                as: ["sum"],
-                sort: {field: "YearMonth"}
-              },
-              {
-                type: "formula",
-                expr: "datum.sum - datum.Change",
-                as: "previous_sum"
-              }
-            ]
-          }
-        ],
-        scales: [
-          {
-            name: "x",
-            type: "band",
-            range: "width",
-            domain: {data: "waterfall", field: "MonthStr"},
-            padding: 0.2
-          },
-          {
-            name: "y",
-            type: "linear",
-            range: "height",
-            nice: true,
-            zero: true,
-            domain: {data: "waterfall", fields: ["previous_sum", "sum"]}
-          },
-          {
-            name: "color",
-            type: "ordinal",
-            domain: ["Increase", "Decrease"],
-            range: ["#4CAF50", "#F44336"]
-          }
-        ],
-        axes: [
-          {
-            orient: "bottom",
-            scale: "x",
-            title: "Month",
-            labelAngle: -45,
-            labelAlign: "right",
-            labelBaseline: "middle"
-          },
-          {
-            orient: "left",
-            scale: "y",
-            title: "Revenue Change"
-          }
-        ],
-        marks: [
-          {
-            type: "rect",
-            from: {data: "waterfall"},
-            encode: {
-              enter: {
-                x: {scale: "x", field: "MonthStr"},
-                width: {scale: "x", band: 1},
-                y: {scale: "y", field: "previous_sum"},
-                y2: {scale: "y", field: "sum"},
-                fill: {scale: "color", field: "ChangeType"},
-                tooltip: {
-                  signal: "{'Month': datum.MonthStr, 'Change': format(datum.Change, ',.2f'), 'Monthly Total': format(datum.MonthlyTotal, ',.2f')}"
-                }
-              }
-            }
-          }
-        ],
-        legends: [
-          {
-            fill: "color",
-            title: "Change Type",
-            orient: "top-right"
-          }
-        ]
-      };
+
 
       // Embed the new visualizations
       vegaEmbed('#monthly', monthlyRevenueSpec).catch(console.error);
